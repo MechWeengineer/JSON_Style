@@ -29,13 +29,25 @@
             color: var(--header-color);
             border-bottom: 2px solid var(--border-color);
             padding-bottom: 10px;
-            margin-top: 0;
+            margin: 0 0 20px 0;
         }
-        .main-content {
+
+        /* NEW: Three-column layout */
+        .main-container {
             display: flex;
             gap: 20px;
         }
-        .controls, .output {
+        .left-column, .right-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .center-column {
+            flex: 2;
+        }
+
+        .controls, .output, .target-directory {
             background-color: var(--primary-color);
             padding: 20px;
             border-radius: 8px;
@@ -43,17 +55,8 @@
             flex-direction: column;
             gap: 15px;
             align-self: flex-start;
-        }
-        .controls { flex: 1; }
-        .output { width: 100%; box-sizing: border-box; }
-        .left-column {
-             flex: 1;
-             display: flex;
-             flex-direction: column;
-             gap: 20px;
-        }
-        .gui-column {
-            flex: 2;
+            width: 100%;
+            box-sizing: border-box;
         }
         textarea {
             width: 100%;
@@ -79,15 +82,13 @@
         .btn-danger { background-color: var(--danger-bg); }
         .btn-danger:hover { background-color: var(--danger-hover); }
 
-        /* MODIFIED STYLES */
+        /* Center Column: Main GUI */
         .target-container {
             background-color: var(--primary-color);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             margin-bottom: 15px;
             opacity: 1;
-            transition: opacity 0.2s, transform 0.2s;
-            scroll-margin-top: 20px; /* For better scrolling */
         }
         .target-header {
             background-color: var(--secondary-color);
@@ -104,8 +105,14 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            word-break: break-all;
             flex-grow: 1;
+        }
+        /* MODIFIED: Enable text wrapping */
+        .target-header .title-text {
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
         }
         .target-header .title-group input {
             background-color: var(--bg-color);
@@ -140,71 +147,57 @@
             align-items: center;
             word-break: break-all;
         }
-        .style-item:last-child { margin-bottom: 0; }
         .dragging {
-            opacity: 0.5;
+            opacity: 0.4;
         }
         .drag-over {
             border: 2px dashed var(--header-color);
+            background-color: var(--secondary-color);
         }
         #output-json {
             min-height: 400px;
         }
         
-        /* NEW FLOATING NAVIGATOR STYLES */
-        #floating-nav {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 280px;
-            background-color: var(--primary-color);
-            border-radius: 8px;
-            padding: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            max-height: calc(100vh - 40px);
-            display: flex;
-            flex-direction: column;
-        }
-        #floating-nav h3 {
-            margin: 0 0 10px 0;
-            padding: 10px;
-            color: var(--header-color);
-            text-align: center;
-            border-bottom: 1px solid var(--border-color);
-        }
-        #floating-nav-list {
+        /* NEW: Right Column Target Directory */
+        .target-directory h2 { margin: 0 0 10px; }
+        #target-directory-list {
             list-style-type: none;
             padding: 0;
             margin: 0;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
-        #floating-nav-list li a {
-            display: block;
+        .directory-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             padding: 10px;
-            text-decoration: none;
-            color: var(--text-color);
+            background-color: var(--secondary-color);
             border-radius: 4px;
+            cursor: grab;
+            border: 1px solid var(--border-color);
+        }
+        .directory-item .dir-title {
+            flex-grow: 1;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: 14px;
-            cursor: pointer;
         }
-        #floating-nav-list li a:hover {
-            background-color: var(--secondary-color);
-            color: #fff;
-        }
-        #floating-nav-list li a .index {
-            font-weight: bold;
-            color: var(--header-color);
+        .directory-item input {
+             background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            width: 45px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-
     <h1>JSON Style Editor</h1>
 
-    <div class="main-content">
+    <div class="main-container">
         <div class="left-column">
             <div class="controls">
                 <h2>Input JSON</h2>
@@ -218,38 +211,38 @@
                 <button onclick="copyOutput()">Copy to Clipboard</button>
             </div>
         </div>
-        <div class="gui-column">
+        
+        <div class="center-column">
             <h2>Graphical Layout</h2>
-            <div id="gui-container">
-                </div>
+            <div id="gui-container"></div>
+        </div>
+        
+        <div class="right-column">
+            <div class="target-directory" id="target-directory-container" style="display:none;">
+                <h2>Target Directory</h2>
+                <div id="target-directory-list"></div>
+            </div>
         </div>
     </div>
-    
-    <nav id="floating-nav" style="display:none;">
-        <h3>Target Navigator</h3>
-        <ul id="floating-nav-list"></ul>
-    </nav>
 
 
 <script>
-    // Existing elements
+    // --- DOM Elements ---
     const jsonInput = document.getElementById('json-input');
     const loadBtn = document.getElementById('load-btn');
     const exportBtn = document.getElementById('export-btn');
     const guiContainer = document.getElementById('gui-container');
     const outputContainer = document.getElementById('output-container');
     const outputJson = document.getElementById('output-json');
+    const directoryContainer = document.getElementById('target-directory-container');
+    const directoryList = document.getElementById('target-directory-list');
 
-    // NEW elements
-    const floatingNav = document.getElementById('floating-nav');
-    const floatingNavList = document.getElementById('floating-nav-list');
-
-    // State variables
+    // --- State Variables ---
     let appData = [];
     let styleClipboard = null;
     let draggedItem = null;
     
-    // --- PARSING ---
+    // --- Data Parsing ---
     function parseJson(inputStr) {
         try {
             const data = JSON.parse(inputStr);
@@ -260,218 +253,182 @@
                 if (match) {
                     const targetIndex = parseInt(match[1], 10);
                     const type = match[2];
-                    if (!tempStore[targetIndex]) {
-                        tempStore[targetIndex] = { target: '', styles: [] };
-                    }
-                    if (type === 'target') {
-                        tempStore[targetIndex].target = data[key];
-                    } else if (type === 'styles') {
-                        const styleIndex = parseInt(match[3], 10);
-                        if(!tempStore[targetIndex].styles[styleIndex]){
-                             tempStore[targetIndex].styles[styleIndex] = data[key];
-                        }
-                    }
+                    if (!tempStore[targetIndex]) tempStore[targetIndex] = { target: '', styles: [] };
+                    if (type === 'target') tempStore[targetIndex].target = data[key];
+                    else if (type === 'styles') tempStore[targetIndex].styles[parseInt(match[3], 10)] = data[key];
                 }
             }
-            return Object.values(tempStore).map(t => ({
-                ...t,
-                styles: t.styles.filter(s => s != null) 
-            }));
+            return Object.values(tempStore).map(t => ({...t, styles: t.styles.filter(s => s != null)}));
         } catch (e) {
             alert('Invalid JSON format: ' + e.message);
             return null;
         }
     }
 
-    // --- RENDERING ---
+    // --- Rendering ---
     function renderAll() {
+        if (appData.length > 0) {
+            directoryContainer.style.display = 'flex';
+        } else {
+            directoryContainer.style.display = 'none';
+        }
         renderGui();
-        renderFloatingList();
+        renderDirectory();
+        addEventListeners();
     }
     
     function renderGui() {
         guiContainer.innerHTML = '';
-        if (appData.length > 0) floatingNav.style.display = 'flex';
-        else floatingNav.style.display = 'none';
-
         appData.forEach((targetData, targetIndex) => {
             const targetContainer = document.createElement('div');
-            targetContainer.id = `target-card-${targetIndex}`; // ID for scrolling
             targetContainer.className = 'target-container';
             targetContainer.draggable = true;
             targetContainer.dataset.targetIndex = targetIndex;
 
-            const targetHeader = document.createElement('div');
-            targetHeader.className = 'target-header';
-
-            // NEW: Modifiable target number input
-            const titleGroup = document.createElement('div');
-            titleGroup.className = 'title-group';
-            titleGroup.innerHTML = `
-                Target 
-                <input type="number" min="0" max="${appData.length - 1}" value="${targetIndex}" data-target-index="${targetIndex}">: 
-                <span class="title-text">${targetData.target}</span>
+            targetContainer.innerHTML = `
+                <div class="target-header">
+                    <div class="title-group">
+                        Target 
+                        <input type="number" min="0" value="${targetIndex}" class="renumber-input" data-target-index="${targetIndex}">: 
+                        <span class="title-text">${targetData.target}</span>
+                    </div>
+                    <div class="target-actions">
+                        <button class="paste-style-btn" data-target-index="${targetIndex}">Paste Style</button>
+                        <button class="delete-target-btn btn-danger" data-target-index="${targetIndex}">Delete Target</button>
+                    </div>
+                </div>
+                <div class="style-list" data-target-index="${targetIndex}">
+                    ${targetData.styles.map((style, styleIndex) => `
+                        <div class="style-item" draggable="true" data-target-index="${targetIndex}" data-style-index="${styleIndex}">
+                            <span>${style}</span>
+                            <div class="style-actions">
+                                <button class="copy-style-btn" data-target-index="${targetIndex}" data-style-index="${styleIndex}">Copy</button>
+                                <button class="delete-style-btn btn-danger" data-target-index="${targetIndex}" data-style-index="${styleIndex}">Delete</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
             `;
-            
-            const targetActions = document.createElement('div');
-            targetActions.className = 'target-actions';
-            
-            const pasteBtn = document.createElement('button');
-            pasteBtn.textContent = 'Paste Style';
-            pasteBtn.onclick = () => {
+            guiContainer.appendChild(targetContainer);
+        });
+    }
+
+    function renderDirectory() {
+        directoryList.innerHTML = '';
+        appData.forEach((targetData, index) => {
+            const item = document.createElement('div');
+            item.className = 'directory-item';
+            item.draggable = true;
+            item.dataset.targetIndex = index;
+            item.innerHTML = `
+                <input type="number" min="0" value="${index}" class="renumber-input" data-target-index="${index}">
+                <span class="dir-title">${targetData.target}</span>
+            `;
+            directoryList.appendChild(item);
+        });
+    }
+
+    // --- Core Logic & Event Handlers ---
+    function moveTarget(oldIndex, newIndex) {
+        if (isNaN(newIndex) || newIndex < 0 || newIndex >= appData.length) {
+            alert(`Invalid index. Please enter a number between 0 and ${appData.length - 1}.`);
+            return;
+        }
+        if (oldIndex !== newIndex) {
+            const [targetToMove] = appData.splice(oldIndex, 1);
+            appData.splice(newIndex, 0, targetToMove);
+            renderAll();
+        }
+    }
+
+    function addEventListeners() {
+        // --- Event Delegation for Buttons ---
+        document.body.addEventListener('click', (e) => {
+            const targetIndex = parseInt(e.target.dataset.targetIndex, 10);
+            const styleIndex = parseInt(e.target.dataset.styleIndex, 10);
+
+            if (e.target.matches('.paste-style-btn')) {
                 if (styleClipboard) {
                     appData[targetIndex].styles.push(styleClipboard);
                     renderAll();
-                } else {
-                    alert('Clipboard is empty. Copy a style first.');
-                }
-            };
-
-            const deleteTargetBtn = document.createElement('button');
-            deleteTargetBtn.textContent = 'Delete Target';
-            deleteTargetBtn.className = 'btn-danger';
-            deleteTargetBtn.onclick = () => {
+                } else alert('Clipboard is empty. Copy a style first.');
+            }
+            if (e.target.matches('.delete-target-btn')) {
                 if (confirm(`Are you sure you want to delete Target ${targetIndex}?`)) {
                     appData.splice(targetIndex, 1);
                     renderAll();
                 }
-            };
-            
-            targetActions.appendChild(pasteBtn);
-            targetActions.appendChild(deleteTargetBtn);
-            targetHeader.appendChild(titleGroup);
-            targetHeader.appendChild(targetActions);
-            
-            const styleList = document.createElement('div');
-            styleList.className = 'style-list';
-            styleList.dataset.targetIndex = targetIndex;
+            }
+            if (e.target.matches('.copy-style-btn')) {
+                styleClipboard = appData[targetIndex].styles[styleIndex];
+                alert(`Copied: "${styleClipboard}"`);
+            }
+            if (e.target.matches('.delete-style-btn')) {
+                appData[targetIndex].styles.splice(styleIndex, 1);
+                renderAll();
+            }
+        });
 
-            targetData.styles.forEach((style, styleIndex) => {
-                const styleItem = document.createElement('div');
-                styleItem.className = 'style-item';
-                styleItem.draggable = true;
-                styleItem.dataset.targetIndex = targetIndex;
-                styleItem.dataset.styleIndex = styleIndex;
-                styleItem.innerHTML = `<span>${style}</span>`;
-
-                const styleActions = document.createElement('div');
-                styleActions.className = 'style-actions';
-
-                const copyBtn = document.createElement('button');
-                copyBtn.textContent = 'Copy';
-                copyBtn.onclick = () => {
-                    styleClipboard = style;
-                    alert(`Copied: "${style}"`);
-                };
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = 'Delete';
-                deleteBtn.className = 'btn-danger';
-                deleteBtn.onclick = () => {
-                    appData[targetIndex].styles.splice(styleIndex, 1);
-                    renderAll();
-                };
-
-                styleActions.appendChild(copyBtn);
-                styleActions.appendChild(deleteBtn);
-                styleItem.appendChild(styleActions);
-                styleList.appendChild(styleItem);
+        // --- Renumbering Inputs ---
+        document.querySelectorAll('.renumber-input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const oldIndex = parseInt(e.target.dataset.targetIndex, 10);
+                const newIndex = parseInt(e.target.value, 10);
+                moveTarget(oldIndex, newIndex);
             });
-
-            targetContainer.appendChild(targetHeader);
-            targetContainer.appendChild(styleList);
-            guiContainer.appendChild(targetContainer);
         });
-        
-        addEventListeners();
-    }
 
-    // NEW: Renders the floating navigator
-    function renderFloatingList() {
-        floatingNavList.innerHTML = '';
-        appData.forEach((targetData, index) => {
-            const li = document.createElement('li');
-            const a = document.createElement('a');
-            a.innerHTML = `<span class="index">Target ${index}:</span> ${targetData.target}`;
-            a.onclick = () => {
-                const targetCard = document.getElementById(`target-card-${index}`);
-                if (targetCard) {
-                    targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            };
-            li.appendChild(a);
-            floatingNavList.appendChild(li);
-        });
-    }
-
-    // --- EVENT LISTENERS & LOGIC ---
-    function addEventListeners() {
-        // Drag and Drop listeners
-        const draggables = document.querySelectorAll('.target-container, .style-item');
-        const dropzones = document.querySelectorAll('.target-container, .style-list');
-
+        // --- Drag and Drop ---
+        const draggables = document.querySelectorAll('.target-container, .style-item, .directory-item');
         draggables.forEach(draggable => {
             draggable.addEventListener('dragstart', (e) => {
                 e.stopPropagation();
                 draggedItem = {
                     element: draggable,
-                    isTarget: draggable.classList.contains('target-container'),
+                    isTarget: draggable.matches('.target-container, .directory-item'),
+                    isStyle: draggable.matches('.style-item'),
                     sourceTargetIndex: parseInt(draggable.dataset.targetIndex, 10),
-                    sourceStyleIndex: draggable.classList.contains('style-item') ? parseInt(draggable.dataset.styleIndex, 10) : null
+                    sourceStyleIndex: draggable.matches('.style-item') ? parseInt(draggable.dataset.styleIndex, 10) : null
                 };
                 setTimeout(() => draggable.classList.add('dragging'), 0);
             });
-
             draggable.addEventListener('dragend', (e) => {
                 e.stopPropagation();
-                if(draggedItem && draggedItem.element) draggedItem.element.classList.remove('dragging');
+                if (draggedItem && draggedItem.element) draggedItem.element.classList.remove('dragging');
                 draggedItem = null;
+                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
             });
         });
 
+        const dropzones = document.querySelectorAll('.target-container, .style-list, .directory-item');
         dropzones.forEach(zone => {
-            zone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over'); });
-            zone.addEventListener('dragleave', e => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('drag-over'); });
-            zone.addEventListener('drop', e => {
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+            zone.addEventListener('dragleave', (e) => { zone.classList.remove('drag-over'); });
+            zone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 zone.classList.remove('drag-over');
                 if (!draggedItem) return;
-                const dropTargetElement = e.target.closest('.target-container');
-                if (!dropTargetElement) return;
-                const destTargetIndex = parseInt(dropTargetElement.dataset.targetIndex, 10);
+
+                const destTargetElement = e.target.closest('.target-container, .directory-item');
+                if (!destTargetElement) return;
+
+                const destTargetIndex = parseInt(destTargetElement.dataset.targetIndex, 10);
+
                 if (draggedItem.isTarget) {
-                    const [removedTarget] = appData.splice(draggedItem.sourceTargetIndex, 1);
-                    appData.splice(destTargetIndex, 0, removedTarget);
-                } else {
-                    const dropStyleElement = e.target.closest('.style-item');
+                    moveTarget(draggedItem.sourceTargetIndex, destTargetIndex);
+                } else if (draggedItem.isStyle) {
                     const [removedStyle] = appData[draggedItem.sourceTargetIndex].styles.splice(draggedItem.sourceStyleIndex, 1);
-                    if (dropStyleElement) {
-                        const destStyleIndex = parseInt(dropStyleElement.dataset.styleIndex, 10);
-                        appData[destTargetIndex].styles.splice(destStyleIndex, 0, removedStyle);
+                    const destStyleElement = e.target.closest('.style-item');
+                    const destStyleList = e.target.closest('.style-list');
+                    const finalDestTargetIndex = destStyleList ? parseInt(destStyleList.dataset.targetIndex, 10) : destTargetIndex;
+
+                    if (destStyleElement) {
+                        const destStyleIndex = parseInt(destStyleElement.dataset.styleIndex, 10);
+                        appData[finalDestTargetIndex].styles.splice(destStyleIndex, 0, removedStyle);
                     } else {
-                        appData[destTargetIndex].styles.push(removedStyle);
+                        appData[finalDestTargetIndex].styles.push(removedStyle);
                     }
-                }
-                renderAll();
-            });
-        });
-
-        // NEW: Listener for target number inputs
-        document.querySelectorAll('.title-group input').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const oldIndex = parseInt(e.target.dataset.targetIndex, 10);
-                let newIndex = parseInt(e.target.value, 10);
-
-                if (isNaN(newIndex) || newIndex < 0 || newIndex >= appData.length) {
-                    alert(`Invalid index. Please enter a number between 0 and ${appData.length - 1}.`);
-                    e.target.value = oldIndex; // Reset to original value
-                    return;
-                }
-
-                if (oldIndex !== newIndex) {
-                    const [targetToMove] = appData.splice(oldIndex, 1);
-                    appData.splice(newIndex, 0, targetToMove);
                     renderAll();
                 }
             });
@@ -496,7 +453,7 @@
         alert('Exported JSON copied to clipboard!');
     }
 
-    // --- INITIAL LOAD ---
+    // --- Initial Load ---
     loadBtn.addEventListener('click', () => {
         const data = parseJson(jsonInput.value);
         if (data) {
@@ -504,10 +461,9 @@
             renderAll();
         }
     });
-
     exportBtn.addEventListener('click', doExport);
     
-    // Initial pre-fill and load. I've left your sample JSON out for brevity, but it's loaded here.
+    // Pre-fill and load example JSON
     jsonInput.value = `{
   "controlStyles[0].target": "Rectangle#BackgroundFill",
   "controlStyles[0].styles[0]": "Fill=Transparent",
@@ -515,7 +471,7 @@
   "controlStyles[1].styles[0]": "BorderBrush@ActiveNormal=#40b07033",
   "controlStyles[1].styles[1]": "BorderBrush@ActivePointerOver=#80314f5a",
   "controlStyles[1].styles[2]": "BorderBrush@ActivePressed=#50314f5a",
-  "controlStyles[2].target": "Taskbar.ExperienceToggleButton > Taskbar.TaskListButtonPanel@CommonStates > Border#BackgroundElement",
+  "controlStyles[2].target": "This is a very long target name designed to test the text wrapping feature in the center column's graphical layout header to see if it breaks onto a new line.",
   "controlStyles[2].styles[0]": "BorderBrush@ActiveNormal=#40b07033",
   "controlStyles[2].styles[1]": "BorderBrush@ActivePointerOver=#80314f5a",
   "controlStyles[3].target": "TextBlock#TimeInnerTextBlock",
@@ -524,7 +480,6 @@
   "controlStyles[4].styles[0]": "Background=#303030"
 }`;
     loadBtn.click();
-
 </script>
 </body>
 </html>
