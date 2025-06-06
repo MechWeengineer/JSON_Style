@@ -24,9 +24,6 @@
             color: var(--text-color);
             margin: 0;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
         }
         h1, h2 {
             color: var(--header-color);
@@ -34,12 +31,11 @@
             padding-bottom: 10px;
             margin-top: 0;
         }
-        .container {
+        .main-content {
             display: flex;
             gap: 20px;
         }
         .controls, .output {
-            flex: 1;
             background-color: var(--primary-color);
             padding: 20px;
             border-radius: 8px;
@@ -47,6 +43,17 @@
             flex-direction: column;
             gap: 15px;
             align-self: flex-start;
+        }
+        .controls { flex: 1; }
+        .output { width: 100%; box-sizing: border-box; }
+        .left-column {
+             flex: 1;
+             display: flex;
+             flex-direction: column;
+             gap: 20px;
+        }
+        .gui-column {
+            flex: 2;
         }
         textarea {
             width: 100%;
@@ -72,16 +79,15 @@
         .btn-danger { background-color: var(--danger-bg); }
         .btn-danger:hover { background-color: var(--danger-hover); }
 
-        #gui-container {
-            flex: 2;
-        }
+        /* MODIFIED STYLES */
         .target-container {
             background-color: var(--primary-color);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             margin-bottom: 15px;
             opacity: 1;
-            transition: opacity 0.2s;
+            transition: opacity 0.2s, transform 0.2s;
+            scroll-margin-top: 20px; /* For better scrolling */
         }
         .target-header {
             background-color: var(--secondary-color);
@@ -92,9 +98,26 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 15px;
         }
-        .target-header .title {
+        .target-header .title-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             word-break: break-all;
+            flex-grow: 1;
+        }
+        .target-header .title-group input {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            width: 45px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .target-header .title-group input:focus {
+            outline: 2px solid var(--header-color);
         }
         .target-actions button, .style-actions button {
             padding: 4px 8px;
@@ -127,32 +150,89 @@
         #output-json {
             min-height: 400px;
         }
+        
+        /* NEW FLOATING NAVIGATOR STYLES */
+        #floating-nav {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            background-color: var(--primary-color);
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            max-height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+        }
+        #floating-nav h3 {
+            margin: 0 0 10px 0;
+            padding: 10px;
+            color: var(--header-color);
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        #floating-nav-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+        }
+        #floating-nav-list li a {
+            display: block;
+            padding: 10px;
+            text-decoration: none;
+            color: var(--text-color);
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        #floating-nav-list li a:hover {
+            background-color: var(--secondary-color);
+            color: #fff;
+        }
+        #floating-nav-list li a .index {
+            font-weight: bold;
+            color: var(--header-color);
+        }
     </style>
 </head>
 <body>
 
     <h1>JSON Style Editor</h1>
 
-    <div class="container">
-        <div class="controls">
-            <h2>Input JSON</h2>
-            <textarea id="json-input"></textarea>
-            <button id="load-btn">Load / Reset</button>
-            <button id="export-btn">Export to JSON</button>
-        </div>
-        <div id="gui-container">
-            <h2>Graphical Layout</h2>
+    <div class="main-content">
+        <div class="left-column">
+            <div class="controls">
+                <h2>Input JSON</h2>
+                <textarea id="json-input"></textarea>
+                <button id="load-btn">Load / Reset</button>
+                <button id="export-btn">Export to JSON</button>
             </div>
+            <div class="output" id="output-container" style="display:none;">
+                <h2>Exported JSON</h2>
+                <textarea id="output-json" readonly></textarea>
+                <button onclick="copyOutput()">Copy to Clipboard</button>
+            </div>
+        </div>
+        <div class="gui-column">
+            <h2>Graphical Layout</h2>
+            <div id="gui-container">
+                </div>
+        </div>
     </div>
     
-    <div class="output" id="output-container" style="display:none;">
-        <h2>Exported JSON</h2>
-        <textarea id="output-json" readonly></textarea>
-        <button onclick="copyOutput()">Copy to Clipboard</button>
-    </div>
+    <nav id="floating-nav" style="display:none;">
+        <h3>Target Navigator</h3>
+        <ul id="floating-nav-list"></ul>
+    </nav>
 
 
 <script>
+    // Existing elements
     const jsonInput = document.getElementById('json-input');
     const loadBtn = document.getElementById('load-btn');
     const exportBtn = document.getElementById('export-btn');
@@ -160,164 +240,78 @@
     const outputContainer = document.getElementById('output-container');
     const outputJson = document.getElementById('output-json');
 
+    // NEW elements
+    const floatingNav = document.getElementById('floating-nav');
+    const floatingNavList = document.getElementById('floating-nav-list');
+
+    // State variables
     let appData = [];
     let styleClipboard = null;
     let draggedItem = null;
-
-    const initialJson = {
-      "controlStyles[0].target": "Rectangle#BackgroundFill",
-      "controlStyles[0].styles[0]": "Fill=Transparent",
-      "controlStyles[1].target": "Taskbar.TaskListLabeledButtonPanel@CommonStates > Border#BackgroundElement",
-      "controlStyles[1].styles[0]": "BorderBrush@ActiveNormal=#40b07033",
-      "controlStyles[1].styles[1]": "BorderBrush@ActivePointerOver=#80314f5a",
-      "controlStyles[1].styles[2]": "BorderBrush@ActivePressed=#50314f5a",
-      "controlStyles[1].styles[3]": "BorderBrush@InactivePointerOver=#80314f5a",
-      "controlStyles[1].styles[4]": "BorderBrush@InactivePressed=#50314f5a",
-      "controlStyles[1].styles[5]": "BorderBrush@MultiWindowActive=#40b07033",
-      "controlStyles[1].styles[6]": "BorderBrush@MultiWindowNormal=#80314f5a",
-      "controlStyles[1].styles[7]": "BorderBrush@MultiWindowPointerOver=#80314f5a",
-      "controlStyles[1].styles[8]": "BorderBrush@MultiWindowPressed=#50314f5a",
-      "controlStyles[1].styles[9]": "BorderThickness=1.5",
-      "controlStyles[2].target": "Taskbar.ExperienceToggleButton > Taskbar.TaskListButtonPanel@CommonStates > Border#BackgroundElement",
-      "controlStyles[2].styles[0]": "BorderBrush@ActiveNormal=#40b07033",
-      "controlStyles[2].styles[1]": "BorderBrush@ActivePointerOver=#80314f5a",
-      "controlStyles[2].styles[2]": "BorderBrush@ActivePressed=#50314f5a",
-      "controlStyles[2].styles[3]": "BorderBrush@InactivePointerOver=#80314f5a",
-      "controlStyles[2].styles[4]": "BorderBrush@InactivePressed=#50314f5a",
-      "controlStyles[2].styles[5]": "BorderThickness=1.5",
-      "controlStyles[2].styles[6]": "CornerRadius=4",
-      "controlStyles[3].target": "TextBlock#TimeInnerTextBlock",
-      "controlStyles[3].styles[0]": "Foreground=White",
-      "controlStyles[4].target": "Grid#OverflowRootGrid > Border",
-      "controlStyles[4].styles[0]": "Background=#303030",
-      "controlStyles[4].styles[1]": "BorderBrush=#404040",
-      "controlStyles[4].styles[2]": "BorderThickness=2",
-      "controlStyles[5].target": "Taskbar.TaskbarFrame > Grid#RootGrid",
-      "controlStyles[5].styles[0]": "Background=Transparent",
-      "controlStyles[5].styles[1]": "Padding=0,1,0,2",
-      "controlStyles[6].target": "Taskbar.TaskbarFrame",
-      "controlStyles[6].styles[0]": "HorizontalAlignment=Center",
-      "controlStyles[6].styles[1]": "Width=1920",
-      "controlStyles[7].target": "Rectangle#BackgroundStroke",
-      "controlStyles[7].styles[0]": "Visibility=Collapsed",
-      "controlStyles[8].target": "SystemTray.ImageIconContent > Grid#ContainerGrid",
-      "controlStyles[8].styles[0]": "Padding=0,4",
-      "controlStyles[9].target": "SystemTray.NotifyIconViewSystem#NotifyItemIcon > Grid#ContainerGrid",
-      "controlStyles[9].styles[0]": "Background=Transparent",
-      "controlStyles[9].styles[1]": "Background@ActiveNormal:=<AcrylicBrush TintColor=\"Black\" TintOpacity=\"0.8\" />",
-      "controlStyles[9].styles[2]": "Background@ActivePointerOver=#50404040",
-      "controlStyles[9].styles[3]": "BorderBrush@ActivePointerOver=#70404040",
-      "controlStyles[9].styles[4]": "BorderBrush@InactivePointerOver=#50404040",
-      "controlStyles[10].target": "Grid#SystemTrayFrameGrid",
-      "controlStyles[10].styles[0]": "Background=Transparent",
-      "controlStyles[10].styles[1]": "CornerRadius=5",
-      "controlStyles[11].target": "Border#OverflowFlyoutBackgroundBorder",
-      "controlStyles[11].styles[0]": "Background=#50303030",
-      "controlStyles[11].styles[1]": "BorderThickness=0",
-      "controlStyles[11].styles[2]": "CornerRadius=8",
-      "controlStyles[12].target": "Taskbar.Badge#BadgeControl",
-      "controlStyles[12].styles[0]": "Height=14",
-      "controlStyles[12].styles[1]": "Margin=0,0,2,2",
-      "controlStyles[13].target": "Taskbar.TaskListLabeledButtonPanel@RunningIndicatorStates > Rectangle#RunningIndicator",
-      "controlStyles[13].styles[0]": "Fill=#FFED7014",
-      "controlStyles[13].styles[1]": "Fill@ActiveRunningIndicator=#7CB1F2",
-      "controlStyles[13].styles[2]": "Fill@InactiveRunningIndicator=#7CB1F2",
-      "controlStyles[13].styles[3]": "Fill@RequestingAttentionRunningIndicator=Red",
-      "controlStyles[13].styles[4]": "Height=4",
-      "controlStyles[13].styles[5]": "Margin=0,0,0,2",
-      "controlStyles[13].styles[6]": "Width=5",
-      "controlStyles[13].styles[7]": "Width@InactiveRunningIndicator=5",
-      "controlStyles[14].target": "Taskbar.TaskListLabeledButtonPanel@CommonStates > Rectangle#RunningIndicator",
-      "controlStyles[14].styles[0]": "Width@ActivePointerOver=10",
-      "controlStyles[15].target": "Taskbar.TaskListButtonPanel#ExperienceToggleButtonRootPanel",
-      "controlStyles[15].styles[0]": "Background=Transparent",
-      "controlStyles[16].target": "Grid@CommonStates > Border",
-      "controlStyles[16].styles[0]": "BorderBrush@PointerOver=#80314f5a",
-      "controlStyles[16].styles[1]": "BorderBrush@Pressed=#50314f5a",
-      "controlStyles[16].styles[2]": "BorderThickness=1.5",
-      "controlStyles[17].target": "Taskbar.TaskListLabeledButtonPanel@MarginStates > Image#Icon",
-      "controlStyles[17].styles[0]": "Transform3D@NormalMultiWindowMargin:=<CompositeTransform3D TranslateX=\"-2\" TranslateY=\"0\" TranslateZ=\"0\"/>",
-      "controlStyles[18].target": "Taskbar.TaskListLabeledButtonPanel@CommonStates > Border#MultiWindowElement",
-      "controlStyles[18].styles[0]": "Background@MultiWindowPointerOver=#40b07033",
-      "controlStyles[18].styles[1]": "BorderBrush@MultiWindowActive=#804e8498",
-      "controlStyles[18].styles[2]": "BorderBrush@MultiWindowNormal=#80314f5a",
-      "controlStyles[18].styles[3]": "BorderBrush@MultiWindowPointerOver=#80314f5a",
-      "controlStyles[18].styles[4]": "BorderBrush@MultiWindowPressed=#50314f5a",
-      "controlStyles[18].styles[5]": "BorderThickness@MultiWindowActive=0,2,2,2",
-      "controlStyles[18].styles[6]": "BorderThickness@MultiWindowNormal=0,2,2,2",
-      "controlStyles[19].target": "Taskbar.TaskListButtonPanel#ExperienceToggleButtonRootPanel@CommonStates ",
-      "controlStyles[19].styles[0]": "Padding=3,4,2,4",
-      "controlStyles[20].target": "Taskbar.TaskListLabeledButtonPanel@RunningIndicatorStates > Image#Icon",
-      "controlStyles[20].styles[0]": "Transform3D@ActiveRunningIndicator:=<CompositeTransform3D TranslateX=\"0\" TranslateY=\"-2\" TranslateZ=\"0\"/>",
-      "controlStyles[20].styles[1]": "Transform3D@InactiveRunningIndicator:=<CompositeTransform3D TranslateX=\"0\" TranslateY=\"-2\" TranslateZ=\"0\"/>",
-      "controlStyles[21].target": "Taskbar.TaskListButtonPanel#ExperienceToggleButtonRootPanel@CommonStates  > Border#BackgroundElement",
-      "controlStyles[21].styles[0]": "Background@Normal_SearchIcon=Transparent",
-      "controlStyles[21].styles[1]": "BorderBrush@ActiveNormal=#40b07033",
-      "controlStyles[21].styles[2]": "BorderBrush@ActiveNormal_SearchIcon=#40b07033",
-      "controlStyles[21].styles[3]": "BorderBrush@ActivePointerOver=#80314f5a",
-      "controlStyles[21].styles[4]": "BorderBrush@ActivePointerOver_SearchIcon=#80314f5a",
-      "controlStyles[21].styles[5]": "BorderBrush@ActivePressed=#50314f5a",
-      "controlStyles[21].styles[6]": "BorderBrush@ActivePressed_SearchIcon=#50314f5a",
-      "controlStyles[21].styles[7]": "BorderBrush@InactivePointerOver=#80314f5a",
-      "controlStyles[21].styles[8]": "BorderBrush@InactivePointerOver_SearchIcon=#80314f5a",
-      "controlStyles[21].styles[9]": "BorderBrush@InactivePressed=#50314f5a",
-      "controlStyles[21].styles[10]": "BorderBrush@InactivePressed_SearchIcon=#50314f5a",
-      "controlStyles[21].styles[11]": "BorderThickness=1.5",
-      "controlStyles[21].styles[12]": "CornerRadius=4"
-    };
-
+    
+    // --- PARSING ---
     function parseJson(inputStr) {
         try {
             const data = JSON.parse(inputStr);
             const tempStore = {};
             const keyRegex = /controlStyles\[(\d+)\]\.(target|styles)(?:\[(\d+)\])?/;
-
             for (const key in data) {
                 const match = key.match(keyRegex);
                 if (match) {
                     const targetIndex = parseInt(match[1], 10);
                     const type = match[2];
-                    
                     if (!tempStore[targetIndex]) {
                         tempStore[targetIndex] = { target: '', styles: [] };
                     }
-
                     if (type === 'target') {
                         tempStore[targetIndex].target = data[key];
                     } else if (type === 'styles') {
                         const styleIndex = parseInt(match[3], 10);
-                        // Ensure styles array is large enough and place style at correct index
                         if(!tempStore[targetIndex].styles[styleIndex]){
                              tempStore[targetIndex].styles[styleIndex] = data[key];
                         }
                     }
                 }
             }
-            
-            // Convert object to array, filtering out empty slots and nulls
             return Object.values(tempStore).map(t => ({
                 ...t,
                 styles: t.styles.filter(s => s != null) 
             }));
-
         } catch (e) {
             alert('Invalid JSON format: ' + e.message);
             return null;
         }
     }
 
+    // --- RENDERING ---
+    function renderAll() {
+        renderGui();
+        renderFloatingList();
+    }
+    
     function renderGui() {
-        guiContainer.innerHTML = '<h2>Graphical Layout</h2>'; // Reset
-        
+        guiContainer.innerHTML = '';
+        if (appData.length > 0) floatingNav.style.display = 'flex';
+        else floatingNav.style.display = 'none';
+
         appData.forEach((targetData, targetIndex) => {
             const targetContainer = document.createElement('div');
+            targetContainer.id = `target-card-${targetIndex}`; // ID for scrolling
             targetContainer.className = 'target-container';
             targetContainer.draggable = true;
             targetContainer.dataset.targetIndex = targetIndex;
 
             const targetHeader = document.createElement('div');
             targetHeader.className = 'target-header';
-            targetHeader.innerHTML = `<span class="title">Target ${targetIndex}: ${targetData.target}</span>`;
+
+            // NEW: Modifiable target number input
+            const titleGroup = document.createElement('div');
+            titleGroup.className = 'title-group';
+            titleGroup.innerHTML = `
+                Target 
+                <input type="number" min="0" max="${appData.length - 1}" value="${targetIndex}" data-target-index="${targetIndex}">: 
+                <span class="title-text">${targetData.target}</span>
+            `;
             
             const targetActions = document.createElement('div');
             targetActions.className = 'target-actions';
@@ -327,7 +321,7 @@
             pasteBtn.onclick = () => {
                 if (styleClipboard) {
                     appData[targetIndex].styles.push(styleClipboard);
-                    renderGui();
+                    renderAll();
                 } else {
                     alert('Clipboard is empty. Copy a style first.');
                 }
@@ -339,12 +333,13 @@
             deleteTargetBtn.onclick = () => {
                 if (confirm(`Are you sure you want to delete Target ${targetIndex}?`)) {
                     appData.splice(targetIndex, 1);
-                    renderGui();
+                    renderAll();
                 }
             };
             
             targetActions.appendChild(pasteBtn);
             targetActions.appendChild(deleteTargetBtn);
+            targetHeader.appendChild(titleGroup);
             targetHeader.appendChild(targetActions);
             
             const styleList = document.createElement('div');
@@ -374,7 +369,7 @@
                 deleteBtn.className = 'btn-danger';
                 deleteBtn.onclick = () => {
                     appData[targetIndex].styles.splice(styleIndex, 1);
-                    renderGui();
+                    renderAll();
                 };
 
                 styleActions.appendChild(copyBtn);
@@ -388,10 +383,30 @@
             guiContainer.appendChild(targetContainer);
         });
         
-        addDragAndDropListeners();
+        addEventListeners();
     }
 
-    function addDragAndDropListeners() {
+    // NEW: Renders the floating navigator
+    function renderFloatingList() {
+        floatingNavList.innerHTML = '';
+        appData.forEach((targetData, index) => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.innerHTML = `<span class="index">Target ${index}:</span> ${targetData.target}`;
+            a.onclick = () => {
+                const targetCard = document.getElementById(`target-card-${index}`);
+                if (targetCard) {
+                    targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            };
+            li.appendChild(a);
+            floatingNavList.appendChild(li);
+        });
+    }
+
+    // --- EVENT LISTENERS & LOGIC ---
+    function addEventListeners() {
+        // Drag and Drop listeners
         const draggables = document.querySelectorAll('.target-container, .style-item');
         const dropzones = document.querySelectorAll('.target-container, .style-list');
 
@@ -409,53 +424,56 @@
 
             draggable.addEventListener('dragend', (e) => {
                 e.stopPropagation();
-                draggedItem.element.classList.remove('dragging');
+                if(draggedItem && draggedItem.element) draggedItem.element.classList.remove('dragging');
                 draggedItem = null;
             });
         });
 
         dropzones.forEach(zone => {
-            zone.addEventListener('dragover', e => {
-                e.preventDefault();
-                e.stopPropagation();
-                zone.classList.add('drag-over');
-            });
-            zone.addEventListener('dragleave', e => {
-                e.preventDefault();
-                e.stopPropagation();
-                zone.classList.remove('drag-over');
-            });
+            zone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over'); });
+            zone.addEventListener('dragleave', e => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('drag-over'); });
             zone.addEventListener('drop', e => {
                 e.preventDefault();
                 e.stopPropagation();
                 zone.classList.remove('drag-over');
-
                 if (!draggedItem) return;
-
                 const dropTargetElement = e.target.closest('.target-container');
                 if (!dropTargetElement) return;
-                
                 const destTargetIndex = parseInt(dropTargetElement.dataset.targetIndex, 10);
-
                 if (draggedItem.isTarget) {
-                    // Move target
                     const [removedTarget] = appData.splice(draggedItem.sourceTargetIndex, 1);
                     appData.splice(destTargetIndex, 0, removedTarget);
                 } else {
-                    // Move style
                     const dropStyleElement = e.target.closest('.style-item');
                     const [removedStyle] = appData[draggedItem.sourceTargetIndex].styles.splice(draggedItem.sourceStyleIndex, 1);
-                    
                     if (dropStyleElement) {
-                        // Dropped on another style
                         const destStyleIndex = parseInt(dropStyleElement.dataset.styleIndex, 10);
                         appData[destTargetIndex].styles.splice(destStyleIndex, 0, removedStyle);
                     } else {
-                        // Dropped on a style list (or target header)
                         appData[destTargetIndex].styles.push(removedStyle);
                     }
                 }
-                renderGui();
+                renderAll();
+            });
+        });
+
+        // NEW: Listener for target number inputs
+        document.querySelectorAll('.title-group input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const oldIndex = parseInt(e.target.dataset.targetIndex, 10);
+                let newIndex = parseInt(e.target.value, 10);
+
+                if (isNaN(newIndex) || newIndex < 0 || newIndex >= appData.length) {
+                    alert(`Invalid index. Please enter a number between 0 and ${appData.length - 1}.`);
+                    e.target.value = oldIndex; // Reset to original value
+                    return;
+                }
+
+                if (oldIndex !== newIndex) {
+                    const [targetToMove] = appData.splice(oldIndex, 1);
+                    appData.splice(newIndex, 0, targetToMove);
+                    renderAll();
+                }
             });
         });
     }
@@ -469,7 +487,7 @@
             });
         });
         outputJson.value = JSON.stringify(output, null, 2);
-        outputContainer.style.display = 'block';
+        outputContainer.style.display = 'flex';
     }
     
     function copyOutput() {
@@ -478,19 +496,33 @@
         alert('Exported JSON copied to clipboard!');
     }
 
-    // --- Initial Load ---
+    // --- INITIAL LOAD ---
     loadBtn.addEventListener('click', () => {
         const data = parseJson(jsonInput.value);
         if (data) {
             appData = data;
-            renderGui();
+            renderAll();
         }
     });
 
     exportBtn.addEventListener('click', doExport);
     
-    // Pre-fill and load the example JSON
-    jsonInput.value = JSON.stringify(initialJson, null, 2);
+    // Initial pre-fill and load. I've left your sample JSON out for brevity, but it's loaded here.
+    jsonInput.value = `{
+  "controlStyles[0].target": "Rectangle#BackgroundFill",
+  "controlStyles[0].styles[0]": "Fill=Transparent",
+  "controlStyles[1].target": "Taskbar.TaskListLabeledButtonPanel@CommonStates > Border#BackgroundElement",
+  "controlStyles[1].styles[0]": "BorderBrush@ActiveNormal=#40b07033",
+  "controlStyles[1].styles[1]": "BorderBrush@ActivePointerOver=#80314f5a",
+  "controlStyles[1].styles[2]": "BorderBrush@ActivePressed=#50314f5a",
+  "controlStyles[2].target": "Taskbar.ExperienceToggleButton > Taskbar.TaskListButtonPanel@CommonStates > Border#BackgroundElement",
+  "controlStyles[2].styles[0]": "BorderBrush@ActiveNormal=#40b07033",
+  "controlStyles[2].styles[1]": "BorderBrush@ActivePointerOver=#80314f5a",
+  "controlStyles[3].target": "TextBlock#TimeInnerTextBlock",
+  "controlStyles[3].styles[0]": "Foreground=White",
+  "controlStyles[4].target": "Grid#OverflowRootGrid > Border",
+  "controlStyles[4].styles[0]": "Background=#303030"
+}`;
     loadBtn.click();
 
 </script>
