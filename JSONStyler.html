@@ -5,294 +5,362 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSON Style Editor</title>
 
+    <!-- CodeMirror CDN for the JSON editor component -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
 
     <style>
+        /* --- General Setup & Variables --- */
         :root {
             --bg-color: #282c34;
             --primary-color: #3d424d;
             --secondary-color: #4a505f;
-            --tertiary-color: #2c313a; /* NEW: For target headers */
+            --tertiary-color: #2c313a; 
             --text-color: #abb2bf;
             --header-color: #61afef;
             --border-color: #5c6370;
-            --button-bg: #61afef;
-            --button-text: #282c34;
-            --button-hover: #98c379;
-            --danger-bg: #e06c75;
-            --danger-hover: #be5046;
+            --success-color: #98c379;
+            --danger-color: #e06c75;
+            --subtle-hover-bg: rgba(255, 255, 255, 0.05);
         }
-        body {
+        html, body {
+            height: 100%; margin: 0; overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            overflow: hidden;
+            background-color: var(--bg-color); color: var(--text-color);
         }
-        h1, h2 {
-            color: var(--header-color);
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 10px;
-            margin: 0 0 20px 0;
-        }
-
-        /* Layout (Unchanged) */
-        .main-container {
-            display: flex;
-            gap: 0;
-            height: calc(100vh - 80px);
-        }
-        .left-column, .right-column, .center-column {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow: hidden;
-        }
-        .left-column { flex-basis: 25%; }
-        .center-column { flex-basis: 50%; }
-        .right-column { flex-basis: 25%; }
-
-        /* Resizer (Unchanged) */
-        .resizer {
-            flex-basis: 6px;
-            background-color: var(--border-color);
-            cursor: col-resize;
-            z-index: 10;
-        }
-        .resizer:hover { background-color: var(--header-color); }
-
-        .controls, .output, .target-directory, .gui-wrapper {
-            background-color: var(--primary-color);
-            padding: 20px;
-            border-radius: 8px;
-            width: 100%;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-        }
-        .gui-wrapper, .target-directory { overflow-y: auto; }
-        .CodeMirror {
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            height: auto;
-            flex-grow: 1;
-        }
+        .page-container { display: flex; flex-direction: column; height: 100%; padding: 20px; box-sizing: border-box; gap: 20px; }
         
-        /* --- MODIFIED & NEW STYLES --- */
-
-        /* NEW: Grab handle style */
-        .grab-handle {
-            cursor: grab;
-            padding-right: 10px;
-            display: flex;
-            align-items: center;
-        }
-        .grab-handle svg {
-            width: 12px;
-            height: 18px;
-            fill: var(--text-color);
-            opacity: 0.7;
-        }
-
-        /* MODIFIED: Target container and header */
-        .target-container {
-            background-color: var(--primary-color);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-        }
-        .target-header {
-            background-color: var(--tertiary-color); /* More prominent bg */
-            padding: 12px 15px; /* More padding */
-            border-radius: 8px 8px 0 0;
-            font-weight: bold;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 15px;
-            cursor: default; /* Remove grab cursor from header */
-        }
-        .target-header .title-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-grow: 1;
-            min-width: 0;
-        }
+        /* --- Headers --- */
+        .main-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 2px solid var(--border-color); flex-shrink: 0; }
+        .main-header h1 { margin: 0; font-size: 24px; }
+        .main-header .header-buttons { display: flex; gap: 10px; }
         
-        /* NEW: Target Divider */
-        .target-divider {
-            height: 1px;
-            background-color: var(--border-color);
-            margin: 20px 0;
-        }
+        /* --- Main Layout & Columns --- */
+        .main-container { display: flex; gap: 0; flex-grow: 1; min-height: 0; }
+        .left-column, .right-column, .center-column { display: flex; flex-direction: column; overflow: hidden; transition: flex-basis 0.3s ease-in-out; }
+        .left-column { flex: 1 1 30%; position: relative; }
+        .center-column { flex: 1 1 40%; }
+        .right-column { flex: 1 1 30%; position: relative; }
 
-        /* MODIFIED: Indented Style List */
-        .style-list {
-            padding: 15px;
-            padding-left: 45px; /* Indent the styles */
-        }
-        .style-item {
-            background-color: var(--secondary-color);
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: default; /* Remove grab cursor */
-        }
+        /* --- Collapsible Panel Styles --- */
+        .panel-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px; position: relative; flex-shrink: 0; }
+        .panel-header h2 { color: var(--header-color); margin: 0; flex-grow: 1; transition: opacity 0.1s ease-in-out; }
+        .is-collapsed { flex-basis: 45px !important; flex-grow: 0 !important; cursor: pointer; }
+        .is-collapsed .controls-content, .is-collapsed .directory-content, .is-collapsed .collapse-btn { visibility: hidden; opacity: 0; }
+        .is-collapsed .panel-header { position: absolute; top: 0; left: 0; height: 100%; width: 100%; margin: 0; padding: 10px; box-sizing: border-box; align-items: center; justify-content: center; }
+        .is-collapsed .panel-header h2 { visibility: visible !important; opacity: 1 !important; white-space: nowrap; transform-origin: center; }
+        .left-column.is-collapsed .panel-header h2 { transform: rotate(90deg); }
+        .right-column.is-collapsed .panel-header h2 { transform: rotate(-90deg); }
+        .collapse-btn { background: var(--secondary-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 5px; cursor: pointer; width: 28px; height: 28px; font-size: 22px; font-family: monospace; line-height: 26px; padding: 0; flex-shrink: 0; }
+        .collapse-btn:hover { background-color: var(--bg-color); }
+
+        /* --- Resizer Handle --- */
+        .resizer { flex-basis: 6px; background-color: var(--border-color); cursor: col-resize; z-index: 10; flex-shrink: 0; }
         
-        /* MODIFIED: Right column directory item */
-        .directory-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px;
-            background-color: var(--secondary-color);
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-            cursor: default; /* Remove grab cursor */
-        }
-        .directory-item .dir-title { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
+        /* --- Panel Content (Unified Layout Pattern) --- */
+        .controls, .target-directory, .gui-wrapper { background-color: var(--primary-color); padding: 20px; border-radius: 8px; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+        .controls-content { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
+        #editor-wrapper { flex-grow: 1; position: relative; min-height: 0; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; }
+        .CodeMirror { height: 100%; }
+        .controls .button-group { margin-top: 15px; flex-shrink: 0; }
+        #gui-container, .directory-content { flex-grow: 1; min-height: 0; overflow-y: auto; padding-right: 10px; }
+        
+        /* --- Graphical UI Components (Center Panel) --- */
+        .grab-handle { cursor: grab; padding-right: 10px; display: flex; align-items: center; fill: var(--text-color); }
+        .grab-handle svg { width: 10px; height: 16px; pointer-events: none; }
+        .target-container { border: 1px solid var(--border-color); border-radius: 8px; }
+        .target-block { margin: 15px 0; }
+        .target-header { background-color: var(--tertiary-color); padding: 12px 15px; border-bottom: 1px solid var(--border-color); font-weight: bold; display: flex; align-items: center; gap: 15px;}
+        .target-header .title-group { flex-grow: 1; display: flex; align-items: center; gap: 8px; min-width: 0;}
+        .title-text.editable span { overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }
+        .target-header .target-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        
+        .description-container { padding: 10px 15px; background-color: var(--secondary-color); border-bottom: 1px solid var(--border-color); font-size: 0.9em; color: #dcdcdc; transition: background-color 0.2s; }
+        .description-container.editable:hover { background-color: var(--primary-color); }
+        .description-container .placeholder { font-style: italic; opacity: 0.6; }
+        
+        .editable { cursor: pointer; }
+        .editable:hover > span { background-color: var(--subtle-hover-bg); border-radius: 3px;}
+        
+        .style-list { padding: 15px; padding-left: 25px; background-color: var(--secondary-color); border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+        .style-item { background-color: var(--primary-color); padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;}
+        .style-item .style-text span { word-break: break-all; }
+        .style-item .style-text { flex-grow: 1; margin-right: 10px; }
+        
+        .add-style-btn { background-color: transparent; border: 1px dashed var(--border-color); color: var(--text-color); padding: 8px; width: 100%; margin-top: 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .add-style-btn:hover { background-color: var(--primary-color); border-style: solid; }
+        .add-target-btn { width: 100%; padding: 12px; border: 2px dashed var(--border-color); background-color: transparent; color: var(--text-color); font-size: 1em; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .add-target-btn:hover { background-color: var(--tertiary-color); border-color: var(--header-color); }
+        
+        .directory-item { display: flex; align-items: center; gap: 8px; padding: 10px; background-color: var(--secondary-color); border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 8px; cursor: pointer; transition: background-color 0.2s; }
+        .directory-item:hover { background-color: var(--primary-color); }
+        .directory-item .dir-title { flex-grow: 1; white-space: normal; word-break: break-word; pointer-events: none; }
+        input[type="number"] { width: 45px; text-align: center; background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 3px; }
         .dragging { opacity: 0.4; }
-        .drag-over { border: 2px dashed var(--header-color) !important; background-color: var(--tertiary-color); }
+        .drag-over { border: 2px dashed var(--header-color) !important; background-color: var(--tertiary-color) !important; }
+        button { padding: 10px 15px; border: none; border-radius: 4px; background-color:var(--header-color); color: #282c34; font-weight: bold; cursor: pointer; transition: filter 0.2s; }
+        button:hover { filter: brightness(1.1); }
+        .btn-danger { background-color: var(--danger-color); }
+        
+        /* --- Modals & Notifications --- */
+        #toast-notification { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background-color: var(--success-color); color: #282c34; padding: 12px 25px; border-radius: 8px; font-weight: bold; z-index: 2001; transition: bottom 0.5s ease-in-out; }
+        #toast-notification.show { bottom: 30px; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 1999; display: none; justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--primary-color); padding: 25px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 15px; box-shadow: 0 5px 25px rgba(0,0,0,0.5); }
+        #edit-modal { width: 60%; max-width: 700px; }
+        #edit-modal textarea { width: 100%; min-height: 150px; background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; box-sizing: border-box; font-size: 1.1em; font-family: inherit; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+
+        /* --- External Color Picker Modal --- */
+        #picker-modal-content {
+            width: 90vw;
+            height: 90vh;
+            max-width: 1400px;
+            padding: 20px;
+        }
+        #picker-modal-content h2 {
+            margin: 0 0 15px 0;
+            color: var(--header-color);
+            flex-shrink: 0;
+        }
+        #color-picker-iframe {
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            flex-grow: 1;
+            background-color: #fff;
+        }
+        #picker-modal-content .modal-buttons {
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
-    <h1>JSON Style Editor</h1>
-    <div class="main-container">
-        <div class="left-column" id="left-column">
-             <div class="controls">
-                <h2>Input JSON</h2>
-                <div id="json-input-editor"></div>
-                <button id="load-btn">Load / Reset</button>
+    <div class="page-container">
+        <header class="main-header">
+            <h1>JSON Style Editor</h1>
+            <div class="header-buttons">
+                <button id="open-picker-btn">Color Picker</button>
                 <button id="export-btn">Export to JSON</button>
             </div>
-        </div>
-
-        <div class="resizer" id="resizer-left-center"></div>
-        
-        <div class="center-column" id="center-column">
-             <div class="gui-wrapper">
-                <h2>Graphical Layout</h2>
-                <div id="gui-container"></div>
+        </header>
+        <div class="main-container" id="main-container">
+            <div class="left-column" id="left-column">
+                <div class="controls">
+                    <div class="panel-header"><h2>Input JSON</h2><button class="collapse-btn" data-target="left-column"><</button></div>
+                    <div class="controls-content">
+                        <div id="editor-wrapper"><textarea id="json-input-editor"></textarea></div>
+                        <div class="button-group"><button id="load-btn">Load / Reset</button></div>
+                    </div>
+                </div>
             </div>
-        </div>
-        
-        <div class="resizer" id="resizer-center-right"></div>
-
-        <div class="right-column" id="right-column">
-            <div class="target-directory" id="target-directory-container" style="display:none;">
-                <h2>Target Directory</h2>
-                <div id="target-directory-list"></div>
+            <div class="resizer" id="resizer-left-center"></div>
+            <div class="center-column" id="center-column">
+                <div class="gui-wrapper">
+                    <div class="panel-header"><h2>Graphical Layout</h2></div>
+                    <div id="gui-container"></div>
+                </div>
+            </div>
+            <div class="resizer" id="resizer-center-right"></div>
+            <div class="right-column" id="right-column">
+                <div class="target-directory" id="target-directory-container">
+                    <div class="panel-header"><h2>Target Directory</h2><button class="collapse-btn" data-target="right-column">></button></div>
+                    <div class="directory-content"><div id="target-directory-list"></div></div>
+                </div>
             </div>
         </div>
     </div>
+    <div id="toast-notification"></div>
 
 <script>
-    // --- State & DOM Elements ---
+    // --- CONSTANTS & GLOBAL STATE ---
     let appData = [];
     let styleClipboard = null;
     let draggedItem = null;
-    let jsonEditor;
+    let jsonEditor = null;
+    let editContext = null;
+
+    const GRAB_HANDLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16"><path d="M2,13.25c-0.69,0-1.25,0.56-1.25,1.25s0.56,1.25,1.25,1.25s1.25-0.56,1.25-1.25S2.69,13.25,2,13.25z M8,13.25c-0.69,0-1.25,0.56-1.25,1.25s0.56,1.25,1.25,1.25s1.25-0.56,1.25-1.25S8.69,13.25,8,13.25z M2,6.75C1.31,6.75,0.75,7.31,0.75,8s0.56,1.25,1.25,1.25s1.25-0.56,1.25-1.25S2.69,6.75,2,6.75z M8,6.75c-0.69,0-1.25,0.56-1.25,1.25s0.56,1.25,1.25,1.25s1.25-0.56,1.25-1.25S8.69,6.75,8,6.75z M2,0.25C1.31,0.25,0.75,0.81,0.75,1.5S1.31,2.75,2,2.75s1.25-0.56,1.25-1.25S2.69,0.25,2,0.25z M8,0.25C7.31,0.25,6.75,0.81,6.75,1.5S7.31,2.75,8,2.75s1.25-0.56,1.25-1.25S8.69,0.25,8,0.25z"/></svg>`;
 
     // --- INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
-        jsonEditor = CodeMirror(document.getElementById('json-input-editor'), {
-            lineNumbers: true, mode: { name: 'javascript', json: true }, theme: 'material-darker', lineWrapping: true
-        });
-        initApp();
-        initResizers();
+        setupEditor();
+        setupControls();
+        setupResizers();
+        setupModals();
+        setupEventListeners();
+        loadDataFromEditor();
     });
 
-    function initApp() {
-        const initialJson = `{"controlStyles[0].target":"Rectangle#BackgroundFill","controlStyles[0].styles[0]":"Fill=Transparent","controlStyles[1].target":"Taskbar.TaskListLabeledButtonPanel@CommonStates > Border#BackgroundElement","controlStyles[1].styles[0]":"BorderBrush@ActiveNormal=#40b07033","controlStyles[2].target":"This is a very long target name designed to test text wrapping.","controlStyles[2].styles[0]":"BorderBrush@ActiveNormal=#40b07033","controlStyles[3].target":"TextBlock#TimeInnerTextBlock","controlStyles[3].styles[0]":"Foreground=White"}`;
-        jsonEditor.setValue(JSON.stringify(JSON.parse(initialJson), null, 2));
-        
-        document.getElementById('load-btn').addEventListener('click', () => {
-            const data = parseJson(jsonEditor.getValue());
-            if (data) { appData = data; renderAll(); }
+    function setupEditor() {
+        jsonEditor = CodeMirror.fromTextArea(document.getElementById('json-input-editor'), {
+            lineNumbers: true, mode: { name: 'javascript', json: true },
+            theme: 'material-darker', lineWrapping: true, autoCloseBrackets: true
         });
-        document.getElementById('export-btn').addEventListener('click', doExport);
-        document.getElementById('load-btn').click();
+        jsonEditor.setSize("100%", "100%");
+    }
+
+    function setupControls() {
+        const initialJsonString = `{"controlStyles[0].target":"Taskbar.TaskbarFrame > Grid#RootGrid > Taskbar.TaskbarBackground > Grid > Rectangle#BackgroundFill","controlStyles[0].styles[0]":"Fill=Transparent","controlStyles[1].target":"Taskbar.TaskListLabeledButtonPanel@CommonStates > Border#BackgroundElement","controlStyles[1].styles[0]":"//Description: Sets the border style for taskbar buttons in various states.","controlStyles[1].styles[1]":"BorderBrush@ActiveNormal=#40b07033","controlStyles[1].styles[2]":"BorderBrush@ActivePointerOver=#80314f5a","controlStyles[1].styles[3]":"BorderBrush@ActivePressed=#50314f5a","controlStyles[1].styles[4]":"BorderBrush@InactivePointerOver=#80314f5a","controlStyles[1].styles[5]":"BorderBrush@InactivePressed=#50314f5a","controlStyles[1].styles[6]":"BorderBrush@MultiWindowActive=#40b07033","controlStyles[1].styles[7]":"BorderBrush@MultiWindowNormal=#80314f5a","controlStyles[1].styles[8]":"BorderBrush@MultiWindowPointerOver=#80314f5a","controlStyles[1].styles[9]":"BorderThickness=1.5","controlStyles[2].target":"TextBlock#TimeInnerTextBlock","controlStyles[2].styles[0]":"Foreground=White","controlStyles[3].target":"Grid#OverflowRootGrid > Border","controlStyles[3].styles[0]":"Background=#303030","controlStyles[3].styles[1]":"BorderBrush=#404040","controlStyles[3].styles[2]":"BorderThickness=2","controlStyles[4].target":"Rectangle#BackgroundStroke","controlStyles[4].styles[0]":"// This is a regular comment, not a description.","controlStyles[4].styles[1]":"Visibility=Collapsed","controlStyles[5].target":"SystemTray.NotifyIconViewSystem#NotifyItemIcon > Grid#ContainerGrid","controlStyles[5].styles[0]":"Background@ActivePointerOver=#50404040","controlStyles[5].styles[1]":"BorderBrush@ActivePointerOver=#70404040","controlStyles[5].styles[2]":"BorderBrush@InactivePointerOver=#50404040","controlStyles[6].target":"Grid#SystemTrayFrameGrid","controlStyles[6].styles[0]":"CornerRadius=5"}`;
+        try {
+            jsonEditor.setValue(JSON.stringify(JSON.parse(initialJsonString), null, 2));
+        } catch (e) {
+            console.error("Error parsing initial JSON.", e);
+            jsonEditor.setValue(initialJsonString);
+        }
+        document.getElementById('load-btn').addEventListener('click', loadDataFromEditor);
+        document.getElementById('export-btn').addEventListener('click', exportDataToJson);
     }
     
-    function initResizers() { /* Unchanged */ }
+    function setupModals() {
+        const editModalOverlay = document.createElement('div');
+        editModalOverlay.id = 'edit-modal-overlay';
+        editModalOverlay.className = 'modal-overlay';
+        editModalOverlay.innerHTML = `<div id="edit-modal" class="modal-content"><h2 id="edit-modal-title">Edit Text</h2><textarea id="edit-modal-textarea" spellcheck="false"></textarea><div class="modal-buttons"><button id="edit-modal-cancel" class="btn-danger">Cancel</button><button id="edit-modal-save">Save Changes</button></div></div>`;
+        document.body.appendChild(editModalOverlay);
+        document.getElementById('edit-modal-cancel').addEventListener('click', closeEditModal);
+        document.getElementById('edit-modal-save').addEventListener('click', saveModalEdit);
+        editModalOverlay.addEventListener('click', (e) => { if (e.target === editModalOverlay) closeEditModal(); });
 
-    // --- Data Parsing ---
-    function parseJson(inputStr) { /* Unchanged */ }
+        const pickerModalOverlay = document.createElement('div');
+        pickerModalOverlay.id = 'picker-modal-overlay';
+        pickerModalOverlay.className = 'modal-overlay';
+        pickerModalOverlay.innerHTML = `<div id="picker-modal-content" class="modal-content"><h2>External Color Picker</h2><p style="margin: -5px 0 15px 0; color: var(--text-color); opacity: 0.8;">Use the tool below, then copy the HEX code and paste it into a style field.</p><iframe id="color-picker-iframe" src="about:blank"></iframe><div class="modal-buttons"><button id="picker-modal-close" class="btn-danger">Close</button></div></div>`;
+        document.body.appendChild(pickerModalOverlay);
+        document.getElementById('picker-modal-close').addEventListener('click', closeColorPickerModal);
+        pickerModalOverlay.addEventListener('click', (e) => { if (e.target.id === 'picker-modal-overlay') closeColorPickerModal(); });
+    }
 
-    // --- Rendering ---
+    function setupResizers() {
+        document.getElementById('resizer-left-center').addEventListener('mousedown', createResizerHandler('left'));
+        document.getElementById('resizer-center-right').addEventListener('mousedown', createResizerHandler('right'));
+    }
+    
+    function setupEventListeners() {
+        document.body.addEventListener('click', handleDelegatedClicks);
+    }
+    
+    // --- DATA HANDLING ---
+    function loadDataFromEditor() {
+        const data = parseJsonInput(jsonEditor.getValue());
+        if (data) { appData = data; renderAll(); }
+    }
+
+    function parseJsonInput(inputStr) {
+        try {
+            const flatData = JSON.parse(inputStr);
+            const tempGroups = {};
+            const keyRegex = /controlStyles\[(\d+)\]\.(target|styles\[\d+\])/;
+            
+            for (const key in flatData) {
+                const match = key.match(keyRegex);
+                if (match) {
+                    const index = match[1];
+                    if (!tempGroups[index]) tempGroups[index] = { target: '', description: '', styles: [], rawStyles: [] };
+                    if (key.endsWith('.target')) tempGroups[index].target = flatData[key];
+                    else if (key.includes('.styles')) tempGroups[index].rawStyles.push({ key, value: flatData[key] });
+                }
+            }
+
+            return Object.values(tempGroups).map(group => {
+                const descriptionRegex = /^\s*\/\/Description:\s*(.*)/;
+                const descriptionLine = group.rawStyles.find(style => descriptionRegex.test(style.value));
+                if (descriptionLine) {
+                    group.description = descriptionLine.value.match(descriptionRegex)[1].trim();
+                }
+                const tempStyles = {};
+                group.rawStyles.filter(s => s !== descriptionLine).forEach(style => {
+                    const styleMatch = style.key.match(/styles\[(\d+)\]/);
+                    if (styleMatch) tempStyles[parseInt(styleMatch[1], 10)] = style.value;
+                });
+                group.styles = Object.keys(tempStyles).sort((a, b) => a - b).map(key => tempStyles[key]);
+                return { target: group.target, description: group.description, styles: group.styles };
+            });
+        } catch (e) {
+            alert('Invalid JSON format: ' + e.message);
+            return null;
+        }
+    }
+    
+    function exportDataToJson() {
+        const output = {};
+        appData.forEach((targetData, targetIndex) => {
+            output[`controlStyles[${targetIndex}].target`] = targetData.target || "";
+            let styleStartIndex = 0;
+            if (targetData.description && targetData.description.trim()) {
+                output[`controlStyles[${targetIndex}].styles[0]`] = `//Description: ${targetData.description.trim()}`;
+                styleStartIndex = 1;
+            }
+            if (targetData.styles) {
+                targetData.styles.forEach((style, styleIndex) => {
+                    output[`controlStyles[${targetIndex}].styles[${styleStartIndex + styleIndex}]`] = style;
+                });
+            }
+        });
+        jsonEditor.setValue(JSON.stringify(output, null, 2));
+        showToast('JSON has been formatted and placed in the input editor.');
+    }
+    
+    // --- UI RENDERING ---
     function renderAll() {
-        document.getElementById('target-directory-container').style.display = appData.length > 0 ? 'flex' : 'none';
-        renderGui();
-        renderDirectory();
-        addEventListeners();
+        const hasData = appData && appData.length > 0;
+        document.getElementById('target-directory-container').style.display = hasData ? 'flex' : 'none';
+        renderGui(); 
+        if (hasData) renderDirectory(); 
+        addDynamicEventListeners();
     }
     
-    // NEW: SVG for the grab handle
-    const grabHandleSVG = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 16">
-            <circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/>
-            <circle cx="2" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
-            <circle cx="2" cy="14" r="1.5"/><circle cx="8" cy="14" r="1.5"/>
-        </svg>
-    `;
-
     function renderGui() {
         const guiContainer = document.getElementById('gui-container');
         guiContainer.innerHTML = '';
+        const createAddButton = (index) => `<div class="target-block"><button class="add-target-btn" data-insert-index="${index}">+ Add New Target Here</button></div>`;
+        guiContainer.insertAdjacentHTML('beforeend', createAddButton(0));
         appData.forEach((targetData, targetIndex) => {
-            // Main container for the target block
             const targetBlock = document.createElement('div');
             targetBlock.className = 'target-block';
-
-            // The visible target card
+            
             const targetContainer = document.createElement('div');
             targetContainer.className = 'target-container';
-            targetContainer.dataset.targetIndex = targetIndex; // Keep data on the main container
+            targetContainer.dataset.targetIndex = targetIndex;
+            
+            const descriptionText = targetData.description || "Click to add description...";
+            const descriptionClass = `editable-text-span ${!targetData.description ? 'placeholder' : ''}`;
+            
             targetContainer.innerHTML = `
                 <div class="target-header">
-                    <div class="grab-handle" draggable="true">${grabHandleSVG}</div>
+                    <div class="grab-handle" draggable="true">${GRAB_HANDLE_SVG}</div>
                     <div class="title-group">
-                        Target 
-                        <input type="number" min="0" value="${targetIndex}" class="renumber-input" data-target-index="${targetIndex}">: 
-                        <span class="title-text editable" data-type="target" data-target-index="${targetIndex}">${targetData.target}</span>
+                        Target <input type="number" value="${targetIndex}" class="renumber-input" title="Change target order" data-target-index="${targetIndex}">: 
+                        <span class="title-text editable" data-type="target" data-target-index="${targetIndex}"><span>${targetData.target}</span></span>
                     </div>
                     <div class="target-actions">
-                        <button class="paste-style-btn" data-target-index="${targetIndex}">Paste Style</button>
-                        <button class="delete-target-btn btn-danger" data-target-index="${targetIndex}">Delete Target</button>
+                        <button class="paste-style-btn" title="Paste Copied Style" data-target-index="${targetIndex}">Paste</button>
+                        <button class="delete-target-btn btn-danger" title="Delete Entire Target" data-target-index="${targetIndex}">Del Target</button>
                     </div>
+                </div>
+                <div class="description-container editable" data-type="description" data-target-index="${targetIndex}">
+                    <strong style="pointer-events: none;">Desc:</strong> <span class="${descriptionClass}" style="pointer-events: none;">${descriptionText}</span>
                 </div>
                 <div class="style-list" data-target-index="${targetIndex}">
                     ${targetData.styles.map((style, styleIndex) => `
                         <div class="style-item" data-target-index="${targetIndex}" data-style-index="${styleIndex}">
-                            <div class="grab-handle" draggable="true">${grabHandleSVG}</div>
-                            <span class="style-text editable" data-type="style" data-target-index="${targetIndex}" data-style-index="${styleIndex}">${style}</span>
+                            <div class="grab-handle" draggable="true">${GRAB_HANDLE_SVG}</div>
+                            <input type="number" value="${styleIndex}" class="style-renumber-input" title="Change style order" data-target-index="${targetIndex}" data-style-index="${styleIndex}">
+                            <span class="style-text editable" data-type="style" data-target-index="${targetIndex}" data-style-index="${styleIndex}"><span>${style}</span></span>
                             <div class="style-actions">
-                                <button class="copy-style-btn" data-target-index="${targetIndex}" data-style-index="${styleIndex}">Copy</button>
-                                <button class="delete-style-btn btn-danger" data-target-index="${targetIndex}" data-style-index="${styleIndex}">Delete</button>
+                                <button class="copy-style-btn" title="Copy Style" data-target-index="${targetIndex}" data-style-index="${styleIndex}">Copy</button>
+                                <button class="delete-style-btn btn-danger" title="Delete Style" data-target-index="${targetIndex}" data-style-index="${styleIndex}">Del</button>
                             </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-            targetBlock.appendChild(targetContainer);
+                        </div>`).join('')}
+                    <button class="add-style-btn" data-target-index="${targetIndex}">+ Add Style</button>
+                </div>`;
             
-            // Add a divider after the block, but not for the last one
-            if (targetIndex < appData.length - 1) {
-                const divider = document.createElement('div');
-                divider.className = 'target-divider';
-                targetBlock.appendChild(divider);
-            }
-
+            targetBlock.appendChild(targetContainer);
             guiContainer.appendChild(targetBlock);
+            guiContainer.insertAdjacentHTML('beforeend', createAddButton(targetIndex + 1));
         });
     }
 
@@ -304,216 +372,320 @@
             item.className = 'directory-item';
             item.dataset.targetIndex = index;
             item.innerHTML = `
-                <div class="grab-handle" draggable="true">${grabHandleSVG}</div>
-                <input type="number" min="0" value="${index}" class="renumber-input" data-target-index="${index}">
-                <span class="dir-title">${targetData.target}</span>
-            `;
+                <div class="grab-handle" draggable="true">${GRAB_HANDLE_SVG}</div>
+                <input type="number" value="${index}" class="renumber-input" title="Change target order" data-target-index="${index}">
+                <span class="dir-title">${targetData.target || "(No Target Name)"}</span>`;
             directoryList.appendChild(item);
         });
     }
 
-
-    // --- Core Logic & Event Handlers ---
-    function addEventListeners() {
-        // ... (Click, renumber, and other listeners are mostly unchanged) ...
-
-        // MODIFIED: Drag and Drop now listens on handles
-        const draggables = document.querySelectorAll('.grab-handle');
-        draggables.forEach(handle => {
-            handle.addEventListener('dragstart', (e) => {
-                e.stopPropagation();
-                // Get the draggable parent container
-                const parentElement = handle.closest('.target-container, .style-item, .directory-item');
-                if (!parentElement) return;
-
-                draggedItem = { 
-                    element: parentElement, // The element to apply style to
-                    isTarget: parentElement.matches('.target-container, .directory-item'), 
-                    isStyle: parentElement.matches('.style-item'),
-                    sourceTargetIndex: parseInt(parentElement.dataset.targetIndex, 10), 
-                    sourceStyleIndex: parentElement.matches('.style-item') ? parseInt(parentElement.dataset.styleIndex, 10) : null 
-                };
-                setTimeout(() => parentElement.classList.add('dragging'), 0);
-            });
-            handle.addEventListener('dragend', () => {
-                if (draggedItem && draggedItem.element) draggedItem.element.classList.remove('dragging');
-                draggedItem = null;
-                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-            });
+    function addDynamicEventListeners() {
+        document.querySelectorAll('.renumber-input, .style-renumber-input').forEach(el => {
+            el.addEventListener('change', el.classList.contains('renumber-input') ? handleTargetRenumber : handleStyleRenumber);
+            el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
         });
-        
-        // Dropzone logic is largely unchanged
-        const dropzones = document.querySelectorAll('.target-container, .style-item, .directory-item');
-        dropzones.forEach(zone => {
-            zone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over'); });
-            zone.addEventListener('dragleave', (e) => { e.stopPropagation(); zone.classList.remove('drag-over'); });
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                zone.classList.remove('drag-over');
-                if (!draggedItem) return;
-
-                const destTargetElement = e.target.closest('.target-container, .directory-item');
-                const destStyleElement = e.target.closest('.style-item');
-                
-                // Determine drop location more carefully
-                let finalDestTargetIndex;
-                if (draggedItem.isTarget) {
-                    if (!destTargetElement) return;
-                    finalDestTargetIndex = parseInt(destTargetElement.dataset.targetIndex, 10);
-                    moveTarget(draggedItem.sourceTargetIndex, finalDestTargetIndex);
-                } else if (draggedItem.isStyle) {
-                    const destListElement = e.target.closest('.target-container');
-                    if (!destListElement) return; // Can't drop a style outside a target
-                    finalDestTargetIndex = parseInt(destListElement.dataset.targetIndex, 10);
-
-                    const [removedStyle] = appData[draggedItem.sourceTargetIndex].styles.splice(draggedItem.sourceStyleIndex, 1);
-                    
-                    if (destStyleElement) {
-                         const destStyleIndex = parseInt(destStyleElement.dataset.styleIndex, 10);
-                         appData[finalDestTargetIndex].styles.splice(destStyleIndex, 0, removedStyle);
-                    } else {
-                        appData[finalDestTargetIndex].styles.push(removedStyle);
-                    }
-                    renderAll();
-                }
-            });
+        document.querySelectorAll('[draggable="true"]').forEach(el => {
+            el.addEventListener('dragstart', handleDragStart);
+            el.addEventListener('dragend', handleDragEnd);
         });
-
-        // Other listeners (delegated clicks, renumbering)
-        document.body.addEventListener('click', (e) => {
-            if (e.target.matches('.editable') && !document.querySelector('.edit-in-progress')) {
-                handleTextEdit(e.target);
-            }
-            const targetIndex = parseInt(e.target.dataset.targetIndex, 10);
-            const styleIndex = parseInt(e.target.dataset.styleIndex, 10);
-            if (e.target.matches('.paste-style-btn')) {
-                if (styleClipboard) { appData[targetIndex].styles.push(styleClipboard); renderAll(); }
-                else alert('Clipboard is empty.');
-            } else if (e.target.matches('.delete-target-btn')) {
-                if (confirm(`Delete Target ${targetIndex}?`)) { appData.splice(targetIndex, 1); renderAll(); }
-            } else if (e.target.matches('.copy-style-btn')) {
-                styleClipboard = appData[targetIndex].styles[styleIndex];
-                alert(`Copied: "${styleClipboard}"`);
-            } else if (e.target.matches('.delete-style-btn')) {
-                appData[targetIndex].styles.splice(styleIndex, 1);
-                renderAll();
-            }
-        });
-
-        document.querySelectorAll('.renumber-input').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const oldIndex = parseInt(e.target.dataset.targetIndex, 10);
-                const newIndex = parseInt(e.target.value, 10);
-                moveTarget(oldIndex, newIndex);
-            });
+        document.querySelectorAll('.target-container, .style-item, .directory-item, .style-list').forEach(el => {
+            el.addEventListener('dragover', handleDragOver);
+            el.addEventListener('dragleave', handleDragLeave);
+            el.addEventListener('drop', handleDrop);
         });
     }
     
-    // Unchanged helper functions are included below for completeness
-    function moveTarget(oldIndex, newIndex) {
-        if (isNaN(newIndex) || newIndex < 0 || newIndex >= appData.length) {
-            alert(`Invalid index. Please enter a number between 0 and ${appData.length - 1}.`);
-            renderAll(); // Re-render to reset invalid input
+    // --- EVENT HANDLERS ---
+    function handleDelegatedClicks(e) {
+        const target = e.target;
+        
+        if (target.id === 'open-picker-btn') {
+            openColorPickerModal();
             return;
         }
-        if (oldIndex !== newIndex) {
-            const [targetToMove] = appData.splice(oldIndex, 1);
-            appData.splice(newIndex, 0, targetToMove);
+
+        const collapseTrigger = target.closest('.collapse-btn, .is-collapsed .panel-header');
+        if (collapseTrigger) {
+            const column = collapseTrigger.closest('.left-column, .right-column');
+            if(column) {
+                const button = column.querySelector('.collapse-btn');
+                const isLeft = column.id === 'left-column';
+                column.classList.toggle('is-collapsed');
+                button.innerHTML = column.classList.contains('is-collapsed') ? (isLeft ? '>' : '<') : (isLeft ? '<' : '>');
+            }
+            return;
+        }
+        
+        const directoryItem = target.closest('.directory-item');
+        if (directoryItem) {
+            handleDirectoryClick(directoryItem);
+            return;
+        }
+
+        if (target.closest('.editable')) { openEditModal(target.closest('.editable')); return; }
+        if (target.matches('.add-target-btn')) {
+            appData.splice(parseInt(target.dataset.insertIndex, 10), 0, { target: `New Target ${appData.length + 1}`, description: '', styles: [] });
+            renderAll(); return;
+        }
+
+        const targetIndexAttr = target.closest('[data-target-index]');
+        if (!targetIndexAttr) return;
+        const targetIndex = parseInt(targetIndexAttr.dataset.targetIndex, 10);
+        const styleIndex = target.dataset.styleIndex !== undefined ? parseInt(target.dataset.styleIndex, 10) : null;
+
+        if (target.matches('.paste-style-btn')) { 
+            if (styleClipboard) {
+                appData[targetIndex].styles.push(styleClipboard);
+                renderAll();
+                showToast('Style pasted!');
+            } else {
+                showToast('Clipboard is empty.', true);
+            }
+        } 
+        else if (target.matches('.delete-target-btn')) { 
+            if (confirm(`Are you sure you want to delete Target ${targetIndex}?`)) {
+                appData.splice(targetIndex, 1);
+                renderAll();
+            }
+        }
+        else if (target.matches('.add-style-btn')) { 
+            appData[targetIndex].styles.push("NewStyle=Click to edit");
+            renderAll();
+        } 
+        else if (target.matches('.copy-style-btn')) { 
+            styleClipboard = appData[targetIndex].styles[styleIndex];
+            showToast('Style copied!');
+        } 
+        else if (target.matches('.delete-style-btn')) { 
+            appData[targetIndex].styles.splice(styleIndex, 1);
             renderAll();
         }
     }
 
-    function handleTextEdit(spanElement) {
-        const currentText = spanElement.textContent;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = currentText;
-        input.className = 'edit-in-progress';
-        
-        spanElement.replaceWith(input);
-        input.focus();
-        input.select();
-
-        const saveEdit = () => {
-            const newValue = input.value;
-            const { type, targetIndex, styleIndex } = spanElement.dataset;
-            if (type === 'target') {
-                appData[parseInt(targetIndex)].target = newValue;
-            } else if (type === 'style') {
-                appData[parseInt(targetIndex)].styles[parseInt(styleIndex)] = newValue;
-            }
-            renderAll();
-        };
-
-        input.addEventListener('blur', saveEdit);
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') input.blur();
-            if (e.key === 'Escape') renderAll();
-        });
+    function handleTargetRenumber(e) { 
+        moveTarget(parseInt(e.target.dataset.targetIndex, 10), parseInt(e.target.value, 10)); 
     }
     
-    function doExport() {
-        const output = {};
-        appData.forEach((targetData, targetIndex) => {
-            output[`controlStyles[${targetIndex}].target`] = targetData.target;
-            targetData.styles.forEach((style, styleIndex) => {
-                output[`controlStyles[${targetIndex}].styles[${styleIndex}]`] = style;
-            });
-        });
-        const outputJsonEl = document.getElementById('output-json');
-        outputJsonEl.value = JSON.stringify(output, null, 2);
-        document.getElementById('output-container').style.display = 'flex';
-    }
-
-    function initResizers() {
-        const resizerLeft = document.getElementById('resizer-left-center');
-        const resizerRight = document.getElementById('resizer-center-right');
-        const leftCol = document.getElementById('left-column');
-        const centerCol = document.getElementById('center-column');
-        const rightCol = document.getElementById('right-column');
-
-        const createResizeHandler = (left, right) => (e) => {
-            e.preventDefault();
-            let prevX = e.clientX;
-
-            const handleMouseMove = (moveEvent) => {
-                const deltaX = moveEvent.clientX - prevX;
-                prevX = moveEvent.clientX;
-                const leftWidth = left.getBoundingClientRect().width;
-                const rightWidth = right.getBoundingClientRect().width;
-                left.style.flexBasis = `${leftWidth + deltaX}px`;
-                right.style.flexBasis = `${rightWidth - deltaX}px`;
-            };
-            const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseUp);
-            };
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        };
-        
-        resizerLeft.addEventListener('mousedown', createResizeHandler(leftCol, centerCol));
-        resizerRight.addEventListener('mousedown', createResizeHandler(centerCol, rightCol));
-    }
-
-    function parseJson(inputStr) {
-        try {
-            return Object.values(Object.entries(JSON.parse(inputStr)).reduce((acc, [key, value]) => {
-                const match = key.match(/controlStyles\[(\d+)\]\.(target|styles)(?:\[(\d+)\])?/);
-                if (match) {
-                    const [, targetIndex, type, styleIndex] = match;
-                    const idx = parseInt(targetIndex, 10);
-                    if (!acc[idx]) acc[idx] = { target: '', styles: [] };
-                    if (type === 'target') acc[idx].target = value;
-                    else if (type === 'styles') acc[idx].styles[parseInt(styleIndex, 10)] = value;
-                }
-                return acc;
-            }, {})).map(t => ({ ...t, styles: t.styles.filter(Boolean) }));
-        } catch (e) {
-            alert('Invalid JSON format: ' + e.message);
-            return null;
+    function handleStyleRenumber(e) {
+        const targetIndex = parseInt(e.target.dataset.targetIndex, 10);
+        const oldIdx = parseInt(e.target.dataset.styleIndex, 10);
+        const newIdx = parseInt(e.target.value, 10);
+        const styles = appData[targetIndex].styles;
+        if (isNaN(newIdx) || newIdx < 0 || newIdx >= styles.length) { 
+            alert("Invalid style index.");
+            e.target.value = oldIdx; 
+            return; 
         }
+        if (oldIdx !== newIdx) { 
+            const [item] = styles.splice(oldIdx, 1);
+            styles.splice(newIdx, 0, item);
+            renderAll(); 
+        }
+    }
+    
+    // --- DRAG-AND-DROP HANDLERS ---
+    function handleDragStart(e) {
+        const draggableElement = e.target.closest('[draggable]');
+        if (!draggableElement) return;
+        e.stopPropagation();
+        draggedItem = {
+            element: draggableElement,
+            isTarget: draggableElement.matches('.target-container, .directory-item'),
+            sourceTargetIndex: parseInt(draggableElement.dataset.targetIndex, 10),
+            sourceStyleIndex: draggableElement.dataset.styleIndex ? parseInt(draggableElement.dataset.styleIndex, 10) : null
+        };
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => draggableElement.classList.add('dragging'), 0);
+    }
+    function handleDragEnd() {
+        if(draggedItem) draggedItem.element.classList.remove('dragging');
+        draggedItem = null;
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    }
+    function handleDragOver(e) {
+        e.preventDefault();
+        const dropZone = e.currentTarget;
+        if ((draggedItem.isTarget && dropZone.matches('.style-item')) || (!draggedItem.isTarget && dropZone.matches('.directory-item'))) return;
+        dropZone.classList.add('drag-over');
+    }
+    function handleDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+    function handleDrop(e) {
+        e.preventDefault(); e.stopPropagation();
+        const dropZone = e.currentTarget;
+        dropZone.classList.remove('drag-over');
+        if(!draggedItem) return;
+
+        if (draggedItem.isTarget) {
+            const destContainer = dropZone.closest('[data-target-index]');
+            if(destContainer) moveTarget(draggedItem.sourceTargetIndex, parseInt(destContainer.dataset.targetIndex));
+        } else {
+            const destContainer = dropZone.closest('[data-target-index]');
+            if(!destContainer) return;
+
+            const destTargetIndex = parseInt(destContainer.dataset.targetIndex);
+            const [style] = appData[draggedItem.sourceTargetIndex].styles.splice(draggedItem.sourceStyleIndex, 1);
+            const destStyleEl = e.target.closest('[data-style-index]');
+
+            if (destStyleEl && destStyleEl.closest('[data-target-index]').dataset.targetIndex == destTargetIndex) {
+                appData[destTargetIndex].styles.splice(parseInt(destStyleEl.dataset.styleIndex), 0, style);
+            } else {
+                appData[destTargetIndex].styles.push(style);
+            }
+            renderAll();
+        }
+    }
+
+    // --- UTILITY & MODAL FUNCTIONS ---
+
+    function handleDirectoryClick(directoryItem) {
+        const targetIndex = directoryItem.dataset.targetIndex;
+        if (targetIndex === undefined) return;
+        const targetContainer = document.querySelector(`.target-container[data-target-index="${targetIndex}"]`);
+        if (targetContainer) {
+            targetContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function openEditModal(element) {
+        const { type, targetIndex, styleIndex } = element.dataset;
+        editContext = { type, targetIndex: parseInt(targetIndex), styleIndex: styleIndex ? parseInt(styleIndex) : null };
+        let value = '', title = `Edit ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+
+        if (type === 'target') value = appData[editContext.targetIndex].target;
+        else if (type === 'description') value = appData[editContext.targetIndex].description;
+        else if (type === 'style') {
+            value = appData[editContext.targetIndex].styles[editContext.styleIndex];
+            title += ` [${editContext.styleIndex}]`;
+        }
+        
+        document.getElementById('edit-modal-title').textContent = title;
+        document.getElementById('edit-modal-textarea').value = value;
+        document.getElementById('edit-modal-overlay').style.display = 'flex';
+        document.getElementById('edit-modal-textarea').focus();
+        document.getElementById('edit-modal-textarea').select();
+    }
+    function closeEditModal() {
+        document.getElementById('edit-modal-overlay').style.display = 'none';
+        editContext = null;
+    }
+    function saveModalEdit() {
+        if (!editContext) return;
+        const value = document.getElementById('edit-modal-textarea').value;
+        const { type, targetIndex, styleIndex } = editContext;
+        if (type === 'target') appData[targetIndex].target = value;
+        else if (type === 'description') appData[targetIndex].description = value;
+        else if (type === 'style') appData[targetIndex].styles[styleIndex] = value;
+        renderAll();
+        closeEditModal();
+    }
+
+    function openColorPickerModal() {
+        const overlay = document.getElementById('picker-modal-overlay');
+        const iframe = document.getElementById('color-picker-iframe');
+        iframe.src = "https://htmlcolorcodes.com/color-picker/";
+        overlay.style.display = 'flex';
+    }
+
+    function closeColorPickerModal() {
+        const overlay = document.getElementById('picker-modal-overlay');
+        const iframe = document.getElementById('color-picker-iframe');
+        overlay.style.display = 'none';
+        iframe.src = "about:blank";
+    }
+
+    function moveTarget(oldIdx, newIdx) {
+        if(isNaN(newIdx) || newIdx < 0 || newIdx >= appData.length || oldIdx === newIdx) {
+            if (isNaN(newIdx)) alert("Invalid target index.");
+            renderAll();
+            return;
+        }
+        const [item] = appData.splice(oldIdx, 1);
+        appData.splice(newIdx, 0, item);
+        renderAll();
+    }
+    function showToast(message, isError = false) {
+        const toast = document.getElementById("toast-notification");
+        toast.textContent = message;
+        toast.style.backgroundColor = isError ? 'var(--danger-color)' : 'var(--success-color)';
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2500);
+    }
+    
+    /**
+     * RE-ENGINEERED Resizer Handler Factory
+     * Creates a mouse down handler for a resizer element that handles constraints and anchoring.
+     * @param {string} type - 'left' for the left-center resizer, 'right' for the center-right resizer.
+     */
+    function createResizerHandler(type) {
+        return function onMouseDown(e) {
+            const leftCol = document.getElementById('left-column');
+            const centerCol = document.getElementById('center-column');
+            const rightCol = document.getElementById('right-column');
+
+            if (leftCol.classList.contains('is-collapsed') || rightCol.classList.contains('is-collapsed')) {
+                return;
+            }
+
+            e.preventDefault();
+            const startX = e.clientX;
+            const container = document.getElementById('main-container');
+            const containerWidth = container.offsetWidth;
+            
+            // Define constraints
+            const minWidth = containerWidth * 0.25;  // 1/4 of screen
+            const maxWidth = containerWidth * 0.375; // 3/8 of screen
+            const minCenterWidth = 100; // Center panel should not disappear
+
+            const startLeftWidth = leftCol.offsetWidth;
+            const startCenterWidth = centerCol.offsetWidth;
+            const startRightWidth = rightCol.offsetWidth;
+
+            // Set flex-grow to 0 on all columns to make them rigid during drag
+            leftCol.style.flexGrow = '0';
+            centerCol.style.flexGrow = '0';
+            rightCol.style.flexGrow = '0';
+
+            const onMouseMove = (moveEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+
+                if (type === 'left') {
+                    let newLeftWidth = startLeftWidth + deltaX;
+                    // Clamp the left panel's width
+                    newLeftWidth = Math.max(minWidth, Math.min(newLeftWidth, maxWidth));
+                    
+                    const newCenterWidth = startLeftWidth + startCenterWidth - newLeftWidth;
+
+                    if (newCenterWidth < minCenterWidth) return;
+
+                    leftCol.style.flexBasis = newLeftWidth + 'px';
+                    centerCol.style.flexBasis = newCenterWidth + 'px';
+                } else if (type === 'right') {
+                    let newRightWidth = startRightWidth - deltaX;
+                    // Clamp the right panel's width
+                    newRightWidth = Math.max(minWidth, Math.min(newRightWidth, maxWidth));
+                    
+                    const newCenterWidth = startRightWidth + startCenterWidth - newRightWidth;
+
+                    if (newCenterWidth < minCenterWidth) return;
+
+                    rightCol.style.flexBasis = newRightWidth + 'px';
+                    centerCol.style.flexBasis = newCenterWidth + 'px';
+                }
+            };
+            
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                // Reset flex properties to allow natural flexing on window resize
+                leftCol.style.flexGrow = null;
+                centerCol.style.flexGrow = null;
+                rightCol.style.flexGrow = null;
+            };
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp, { once: true });
+        };
     }
 </script>
 </body>
